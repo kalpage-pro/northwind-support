@@ -107,3 +107,15 @@ and 40 tickets across every status, priority and SLA state.
 | Browser warns about the certificate | `dotnet dev-certs https --trust`, or use the web app, which proxies |
 | Web app shows "Unable to load tickets" | The API is not running, or `VITE_API_PROXY_TARGET` points at the wrong port |
 | SQL Server slow on Apple Silicon | Enable Rosetta in Docker Desktop → Settings → General |
+
+#"npm run db:up"
+#"docker compose ps"
+
+as a first api running web running also data base are up and docker is complete
+
+ Fix a defect case status In Progress show no url request but search is okey
+
+http://localhost:5173/api/tickets?page=1&pageSize=20&status=InProgress&unassignedOnly=false&sortBy=createdAtUtc&sortDirection=desc
+Request method
+GET
+Status code 200 okey

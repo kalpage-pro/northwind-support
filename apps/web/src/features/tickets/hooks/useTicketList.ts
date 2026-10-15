@@ -20,7 +20,8 @@ export const emptyFilters: TicketFilters = {
 };
 
 interface State {
-  isLoading: boolean;
+  /** The request this state belongs to; while it differs from the current request we are loading. */
+  settledFor?: string;
   data?: PagedResult<TicketListItem>;
   error?: string;
 }
@@ -28,31 +29,77 @@ interface State {
 /** Owns the ticket list's filters and the data they produce. */
 export function useTicketList() {
   const [filters, setFilters] = useState<TicketFilters>(emptyFilters);
-  const [state, setState] = useState<State>({ isLoading: true });
+  const [debouncedSearch, setDebouncedSearch] = useState(emptyFilters.search);
+  const [reloadCount, setReloadCount] = useState(0);
+  const [state, setState] = useState<State>({});
 
-  const load = async () => {
-    setState((current) => ({ ...current, isLoading: true, error: undefined }));
-
-    try {
-      const data = await ticketsApi.getTickets(filters);
-      setState({ isLoading: false, data, error: undefined });
-    } catch (error) {
-      const message = error instanceof ApiError ? error.message : 'Unable to load tickets.';
-      setState((current) => ({ ...current, isLoading: false, error: message }));
-    }
-  };
-
+ 
   useEffect(() => {
-    const handle = window.setTimeout(load, DEBOUNCE_MS);
+    const handle = window.setTimeout(() => {
+      setDebouncedSearch(filters.search);
+      // The result set is changing, so go back to page 1 in the same render as the new search.
+      setFilters((current) =>
+        current.page === 1 ? current : { ...current, page: 1 },
+      );
+    }, DEBOUNCE_MS);
 
     return () => window.clearTimeout(handle);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- filters object identity changes every render
-  }, [filters.search, filters.page, filters.pageSize]);
+  }, [filters.search]);
 
+
+  const requestKey = JSON.stringify({
+    query: { ...filters, search: debouncedSearch },
+    reloadCount,
+  });
+
+ useEffect(() => {
+    let cancelled = false;
+    const { query } = JSON.parse(requestKey) as { query: TicketFilters };
+
+    ticketsApi
+      .getTickets(query)
+      .then((data) => {
+        if (!cancelled) setState({ settledFor: requestKey, data });
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        const message =
+          error instanceof ApiError ? error.message : "Unable to load tickets.";
+        setState((current) => ({
+          ...current,
+          settledFor: requestKey,
+          error: message,
+        }));
+      });
+
+    // A newer request supersedes this one, so a slow old response can never overwrite fresh data.
+    return () => {
+      cancelled = true;
+    };
+  }, [requestKey]);
+
+  const isLoading = state.settledFor !== requestKey;
+
+  // A search edit keeps the current page until the debounced search is applied (see above).
   const updateFilters = (patch: Partial<TicketFilters>) =>
-    setFilters((current) => ({ ...current, ...patch, page: patch.page ?? 1 }));
+    setFilters((current) => ({
+      ...current,
+      ...patch,
+      page: patch.page ?? ("search" in patch ? current.page : 1),
+    }));
 
   const resetFilters = () => setFilters(emptyFilters);
 
-  return { filters, updateFilters, resetFilters, reload: load, ...state };
+  const reload = () => setReloadCount((count) => count + 1);
+
+  return {
+    filters,
+    updateFilters,
+    resetFilters,
+    reload,
+    isLoading,
+    data: state.data,
+    error: isLoading ? undefined : state.error,
+  };
 }
+
