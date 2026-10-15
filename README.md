@@ -215,3 +215,85 @@ If tied, the lowest agent ID wins.
 The test suite covers SLA behaviour, priority handling, ticket assignment, escalation rules, history tracking, tie-breaking logic, and triage workflows.
 
 In short: DEFECT-117 was fixed by moving all filtering into the database query, and Stage A introduces the core business rules for priority, SLA management, assignment, and escalation in a clean, reusable, and fully testable domain design.
+
+
+#2.2 got like 3hours
+and 
+api testing are here
+
+POST /api/tickets \forced Critical, premium customer
+{ 
+"title": "Server is down",
+ "description": "Nothing responds since morning",
+ "customerId": 1,
+ "categoryId": 5,
+ "requestedPriority": "Low" 
+}
+
+POST /api/tickets \standard Medium, no specialist
+{ 
+"title": "Customer cannot log in",
+ "description": "The customer reports a login error since this morning", "customerId": 2,
+ "categoryId": 1,
+ "requestedPriority": "Medium"
+ }
+
+POST /api/tickets \default priority
+{ 
+"title": "Question about my invoice",
+ "description": "I would like to understand the latest invoice", "customerId": 4,
+ "categoryId": 2
+ }
+
+POST /api/tickets \premium window and floor
+{ 
+"title": "Dashboard is slow to load",
+"description": "Pages take ten seconds to open", 
+"customerId": 3, 
+"categoryId": 3, 
+"requestedPriority": "High" 
+}
+
+
+POST /api/tickets \validation error
+{ 
+"title": "Hi", 
+"description": "short", 
+"customerId": 1, 
+"categoryId": 1 
+}
+
+
+POST /api/tickets \unknown customer
+{
+"title": "Valid title here", 
+"description": "A valid long description", 
+"customerId": 999, 
+"categoryId": 1 
+}
+
+POST /api/tickets/{id}/escalate \success
+{ 
+"reason": "Customer is waiting", 
+"escalatedBy": "lead@test" 
+}
+
+POST /api/tickets/{id}/escalate \reason too short
+{ 
+"reason": "no", 
+"escalatedBy": "lead@test" 
+}
+
+POST /api/tickets/{id}/escalate \missing actor
+{
+ "reason": "Customer is waiting", 
+"escalatedBy": "" 
+}
+
+GET /api/tickets/99999/escalations
+
+
+Persistence for ticket escalations, EF migration, automatic creation of escalation entities, escalation endpoints, escalation history endpoints, validators, SLA-aware read operations, and SQLite/integration tests.
+Added the 'AddTicketEscalations' migration.
+Verified formatting, build, and tests: 100 tests passed.
+Confirmed that the API starts, the migration is applied, and the seeding is successful.
