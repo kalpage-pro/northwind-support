@@ -90,7 +90,7 @@ public sealed class TicketQueriesFilteringTests : IDisposable
         }
 
         db.SaveChanges();
-        queries = new TicketQueries(db, new FixedClock());
+        queries = new TicketQueries(db, new FixedClock(), new SlaPolicy(DefaultSlaSettings()));
     }
 
     [Fact]
@@ -187,4 +187,18 @@ public sealed class TicketQueriesFilteringTests : IDisposable
 
     private Task<PagedResult<TicketListItemDto>> GetAsync(TicketQuery query) =>
         queries.GetPagedAsync(query.Normalized(), CancellationToken.None);
+
+    private static SlaSettings DefaultSlaSettings() => new()
+    {
+        BaseWindowHours = new()
+        {
+            [TicketPriority.Low] = 72,
+            [TicketPriority.Medium] = 24,
+            [TicketPriority.High] = 8,
+            [TicketPriority.Critical] = 4
+        },
+        PremiumCustomerMultiplier = 0.5,
+        MinimumWindowHours = 1,
+        AtRiskThresholdPercent = 25
+    };
 }

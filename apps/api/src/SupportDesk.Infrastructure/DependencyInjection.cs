@@ -63,6 +63,7 @@ public static class DependencyInjection
         services.AddSingleton<SlaPolicy>();
 
         services.AddScoped<ITicketRepository, TicketRepository>();
+        services.AddScoped<ITicketEscalationRepository, TicketEscalationRepository>();
         services.AddScoped<IAgentRepository, AgentRepository>();
         services.AddScoped<ICustomerRepository, CustomerRepository>();
         services.AddScoped<ICategoryRepository, CategoryRepository>();

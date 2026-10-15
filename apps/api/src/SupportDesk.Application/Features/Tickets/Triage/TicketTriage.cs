@@ -3,6 +3,7 @@ using SupportDesk.Domain.Aggregates.Agents;
 using SupportDesk.Domain.Aggregates.Categories;
 using SupportDesk.Domain.Aggregates.Customers;
 using SupportDesk.Domain.Aggregates.Tickets;
+using SupportDesk.Domain.Exceptions;
 
 namespace SupportDesk.Application.Features.Tickets.Triage;
 
@@ -40,6 +41,11 @@ public sealed class TicketTriage(
         DateTime nowUtc)
     {
         ArgumentNullException.ThrowIfNull(ticket);
+        if (!ticket.CanBeEscalated)
+        {
+            throw new BusinessRuleViolationException(ticket.EscalationBlockedReason!);
+        }
+
         var priority = ticket.Priority.Next();
         var dueAtUtc = slaPolicy.DueAt(priority, tier, nowUtc);
         var assignment = agentSelector.Reevaluate(category, ticket.AssignedAgentId, workloads);

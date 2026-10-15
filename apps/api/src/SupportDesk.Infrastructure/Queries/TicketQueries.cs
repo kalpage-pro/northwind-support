@@ -14,7 +14,7 @@ namespace SupportDesk.Infrastructure.Queries;
 /// Ticket reads. Projected in the database and never tracked. Aggregates hold only each
 /// other's ids, so the customer, category and agent labels are joined in here, on the read side.
 /// </summary>
-public sealed class TicketQueries(SupportDbContext db, IClock clock) : ITicketQueries
+public sealed class TicketQueries(SupportDbContext db, IClock clock, SlaPolicy slaPolicy) : ITicketQueries
 {
     /// <remarks>
     /// Applies every filter in <paramref name="query"/>, then sorts and pages the filtered
@@ -45,18 +45,27 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock) : ITicketQu
                 UpdatedAtUtc = x.Ticket.UpdatedAtUtc,
                 DueAtUtc = x.Ticket.DueAtUtc,
                 ResolvedAtUtc = x.Ticket.ResolvedAtUtc,
-                SlaStatus = SlaEvaluator.Evaluate(x.Ticket.DueAtUtc, x.Ticket.ResolvedAtUtc, now)
             })
             .ToListAsync(ct);
+
+        foreach (var item in items)
+        {
+            item.SlaStatus = slaPolicy.Evaluate(
+                item.DueAtUtc,
+                item.ResolvedAtUtc,
+                item.Priority,
+                item.Customer.Tier,
+                now);
+        }
 
         return new PagedResult<TicketListItemDto>(items, query.Page, query.PageSize, totalCount);
     }
 
-    public Task<TicketDetailDto?> GetDetailAsync(int id, CancellationToken ct)
+    public async Task<TicketDetailDto?> GetDetailAsync(int id, CancellationToken ct)
     {
         var now = clock.UtcNow;
 
-        return TicketsWithLabels()
+        var item = await TicketsWithLabels()
             .Where(x => x.Ticket.Id == id)
             .Select(x => new TicketDetailDto
             {
@@ -74,16 +83,27 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock) : ITicketQu
                 UpdatedAtUtc = x.Ticket.UpdatedAtUtc,
                 DueAtUtc = x.Ticket.DueAtUtc,
                 ResolvedAtUtc = x.Ticket.ResolvedAtUtc,
-                SlaStatus = SlaEvaluator.Evaluate(x.Ticket.DueAtUtc, x.Ticket.ResolvedAtUtc, now)
             })
             .FirstOrDefaultAsync(ct);
+
+        if (item is not null)
+        {
+            item.SlaStatus = slaPolicy.Evaluate(
+                item.DueAtUtc,
+                item.ResolvedAtUtc,
+                item.Priority,
+                item.Customer.Tier,
+                now);
+        }
+
+        return item;
     }
 
     public async Task<IReadOnlyList<TicketListItemDto>> GetForCustomerAsync(int customerId, CancellationToken ct)
     {
         var now = clock.UtcNow;
 
-        return await TicketsWithLabels()
+        var items = await TicketsWithLabels()
             .Where(x => x.Ticket.CustomerId == customerId)
             .OrderByDescending(x => x.Ticket.CreatedAtUtc)
             .ThenByDescending(x => x.Ticket.Id)
@@ -101,10 +121,42 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock) : ITicketQu
                 UpdatedAtUtc = x.Ticket.UpdatedAtUtc,
                 DueAtUtc = x.Ticket.DueAtUtc,
                 ResolvedAtUtc = x.Ticket.ResolvedAtUtc,
-                SlaStatus = SlaEvaluator.Evaluate(x.Ticket.DueAtUtc, x.Ticket.ResolvedAtUtc, now)
             })
             .ToListAsync(ct);
+
+        foreach (var item in items)
+        {
+            item.SlaStatus = slaPolicy.Evaluate(
+                item.DueAtUtc,
+                item.ResolvedAtUtc,
+                item.Priority,
+                item.Customer.Tier,
+                now);
+        }
+
+        return items;
     }
+
+    public async Task<IReadOnlyList<TicketEscalationDto>> GetEscalationsAsync(int ticketId, CancellationToken ct) =>
+        await (from escalation in db.Set<TicketEscalation>().AsNoTracking()
+               join fromAgent in db.Set<Agent>() on escalation.FromAgentId equals fromAgent.Id into fromAgents
+               from fromAgent in fromAgents.DefaultIfEmpty()
+               join toAgent in db.Set<Agent>() on escalation.ToAgentId equals toAgent.Id into toAgents
+               from toAgent in toAgents.DefaultIfEmpty()
+               where escalation.TicketId == ticketId
+               orderby escalation.EscalatedAtUtc descending, escalation.Id descending
+               select new TicketEscalationDto(
+                   escalation.Id,
+                   escalation.FromPriority,
+                   escalation.ToPriority,
+                   fromAgent == null ? null : new AgentSummaryDto(fromAgent.Id, fromAgent.FullName),
+                   toAgent == null ? null : new AgentSummaryDto(toAgent.Id, toAgent.FullName),
+                   escalation.FromDueAtUtc,
+                   escalation.ToDueAtUtc,
+                   escalation.Reason,
+                   escalation.EscalatedBy,
+                   escalation.EscalatedAtUtc))
+            .ToListAsync(ct);
 
     /// <summary>
     /// Every ticket with the rows that label it. Filter and sort this, then project.
