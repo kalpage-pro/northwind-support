@@ -147,3 +147,71 @@ Add the DEFECT-117 root cause, fix and regression tests, describe the
 server-side filter chain and how a slaStatus filter would be added, and
 note the Contains/collation limitation under known limitations.
 
+What I Implemented
+Task 1: DEFECT-117 Fix
+
+Fixed DEFECT-117 in the ticket list feature.
+
+Previously, filtering was happening after the total count and paging logic, which could produce incorrect totals and page results. All filters are now applied directly in the database query before counting and paging.
+
+Supported filters:
+
+Status
+Priority
+Category
+Customer
+Agent
+Unassigned only
+Search text
+
+
+Task 2: Business Rules (In Progress)
+
+Started implementing the core ticketing business rules as small, reusable domain classes. The goal is to keep the logic centralized, easy to test, and shared between ticket creation and escalation.
+
+The following areas have been implemented:
+
+Priority calculation
+SLA calculations and status evaluation
+Agent selection
+Ticket escalation
+Rules Implemented
+Priority
+Uses the requested priority when provided.
+Defaults to Medium if none is supplied.
+Categories marked as ForcesCriticalPriority always create Critical tickets.
+SLA and Due Dates
+
+Due dates are calculated from the ticket creation time using configurable SLA settings:
+
+Priority	Time LimitLow	72 hours
+Medium	24 hours
+High	8 hours
+Critical	4 hours
+
+For premium customers:
+
+SLA windows are reduced by 50%.
+The SLA will never be less than 1 hour.
+
+SLA status is calculated dynamically and is not stored in the database.
+
+A ticket becomes AtRisk when 25% or less of its SLA time remains.
+
+Agent Assignment
+
+Tickets are assigned only to agents who:
+
+Are active
+Have not reached their ticket limit
+Have the required specialization (when needed)
+
+When multiple agents qualify:
+
+The agent with the fewest open tickets is selected.
+If tied, the lowest agent ID wins.
+
+
+The test suite covers SLA behaviour, priority handling, ticket assignment, escalation rules, history tracking, tie-breaking logic, and triage workflows.
+
+In short: DEFECT-117 was fixed by moving all filtering into the database query, and Stage A introduces the core business rules for priority, SLA management, assignment, and escalation in a clean, reusable, and fully testable domain design.
