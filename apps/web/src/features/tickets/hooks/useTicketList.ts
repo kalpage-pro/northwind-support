@@ -33,7 +33,6 @@ export function useTicketList() {
   const [reloadCount, setReloadCount] = useState(0);
   const [state, setState] = useState<State>({});
 
- 
   useEffect(() => {
     const handle = window.setTimeout(() => {
       setDebouncedSearch(filters.search);
@@ -46,13 +45,12 @@ export function useTicketList() {
     return () => window.clearTimeout(handle);
   }, [filters.search]);
 
-
   const requestKey = JSON.stringify({
     query: { ...filters, search: debouncedSearch },
     reloadCount,
   });
 
- useEffect(() => {
+  useEffect(() => {
     let cancelled = false;
     const { query } = JSON.parse(requestKey) as { query: TicketFilters };
 
@@ -64,7 +62,7 @@ export function useTicketList() {
       .catch((error: unknown) => {
         if (cancelled) return;
         const message =
-          error instanceof ApiError ? error.message : "Unable to load tickets.";
+          error instanceof ApiError ? error.message : 'Unable to load tickets.';
         setState((current) => ({
           ...current,
           settledFor: requestKey,

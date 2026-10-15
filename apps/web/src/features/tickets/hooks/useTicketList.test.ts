@@ -51,7 +51,7 @@ describe('useTicketList', () => {
     expect(result.current.isLoading).toBe(false);
     expect(result.current.data?.items).toHaveLength(1);
   });
- it("requests immediately when a dropdown filter changes", async () => {
+  it('requests immediately when a dropdown filter changes', async () => {
     const { result } = renderHook(() => useTicketList());
 
     await act(async () => {
@@ -60,7 +60,7 @@ describe('useTicketList', () => {
     getTickets.mockClear();
 
     act(() => {
-      result.current.updateFilters({ status: "InProgress" });
+      result.current.updateFilters({ status: 'InProgress' });
     });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
@@ -68,11 +68,11 @@ describe('useTicketList', () => {
 
     expect(getTickets).toHaveBeenCalledTimes(1);
     expect(getTickets).toHaveBeenLastCalledWith(
-      expect.objectContaining({ status: "InProgress", page: 1 }),
+      expect.objectContaining({ status: 'InProgress', page: 1 }),
     );
   });
 
-  it("keeps an earlier status when the search text changes, and sends one request per settled search", async () => {
+  it('keeps an earlier status when the search text changes, and sends one request per settled search', async () => {
     const { result } = renderHook(() => useTicketList());
 
     await act(async () => {
@@ -80,14 +80,14 @@ describe('useTicketList', () => {
     });
 
     act(() => {
-      result.current.updateFilters({ status: "InProgress" });
+      result.current.updateFilters({ status: 'InProgress' });
     });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
     getTickets.mockClear();
 
-    for (const text of ["i", "in", "inv"]) {
+    for (const text of ['i', 'in', 'inv']) {
       act(() => {
         result.current.updateFilters({ search: text });
       });
@@ -122,7 +122,7 @@ describe('useTicketList', () => {
     getTickets.mockClear();
 
     act(() => {
-      result.current.updateFilters({ search: "x" });
+      result.current.updateFilters({ search: 'x' });
     });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(100);
@@ -134,7 +134,7 @@ describe('useTicketList', () => {
     });
     expect(getTickets).toHaveBeenCalledTimes(1);
     expect(getTickets).toHaveBeenLastCalledWith(
-      expect.objectContaining({ search: "x", page: 1 }),
+      expect.objectContaining({ search: 'x', page: 1 }),
     );
   });
 });

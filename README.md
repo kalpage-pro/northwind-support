@@ -73,6 +73,26 @@ npm test                      # dotnet test, then the web tests (Vitest)
 
 Both pass on a clean checkout and neither needs a database.
 
+## DEFECT-117 root cause
+
+The ticket list load effect depended only on search, page and page size, so changing status,
+priority, category, customer, agent, unassigned-only or sort did not fetch until another search
+change. The hook now debounces only search text and keys the request from all filters plus reload
+count. Regression tests cover immediate dropdown requests, preserving earlier filters during
+search, and delaying the search-driven page reset until the search settles.
+
+## Server-side filtering
+
+The API applies one small method per filter through an `ApplyFilters` chain before counting,
+sorting and paging. Each method leaves the query unchanged when its filter is not supplied, so
+filters combine with AND; a future `slaStatus` filter can be added as one more method in the chain.
+
+### Known limitations
+
+Search uses `Contains`, which creates a leading wildcard and cannot use an index. Search
+case-sensitivity follows the database collation. Authentication, notifications, caching and the
+other out-of-scope assignment features remain future work.
+
 ## Commands
 
 | Command | What it does |
@@ -87,7 +107,7 @@ Both pass on a clean checkout and neither needs a database.
 
 | Endpoint | Description |
 | --- | --- |
-| `GET /api/tickets` | Paged list with `search`, `status`, `priority`, `categoryId`, `customerId`, `assignedAgentId`, `unassignedOnly`, `sortBy`, `sortDirection`. **Filters are accepted but not applied yet** (Task 1). |
+| `GET /api/tickets` | Paged list with `search`, `status`, `priority`, `categoryId`, `customerId`, `assignedAgentId`, `unassignedOnly`, `sortBy`, `sortDirection`. Filters are applied server-side before counting and paging. |
 | `GET /api/tickets/{id}` | One ticket |
 | `POST /api/tickets` | Create a ticket |
 | `PATCH /api/tickets/{id}/status` · `/assignment` | Change status / assignee |
@@ -113,9 +133,17 @@ and 40 tickets across every status, priority and SLA state.
 
 as a first api running web running also data base are up and docker is complete
 
- Fix a defect case status In Progress show no url request but search is okey
+ Fix a defect case status In Progress show no url request but search is okey 10 -15 min
 
 http://localhost:5173/api/tickets?page=1&pageSize=20&status=InProgress&unassignedOnly=false&sortBy=createdAtUtc&sortDirection=desc
 Request method
 GET
 Status code 200 okey
+
+tsak 1.2 in this case now work all filters it (1h - 2.30h)
+
+Document DEFECT-117 root cause and server-side filtering
+
+Add the DEFECT-117 root cause, fix and regression tests, describe the
+server-side filter chain and how a slaStatus filter would be added, and
+note the Contains/collation limitation under known limitations.
