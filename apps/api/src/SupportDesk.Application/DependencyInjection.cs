@@ -9,6 +9,9 @@ using SupportDesk.Application.Features.Tickets.Commands.ChangeTicketStatus;
 using SupportDesk.Application.Features.Tickets.Commands.RaiseTicket;
 using SupportDesk.Application.Features.Tickets.Queries.GetTicket;
 using SupportDesk.Application.Features.Tickets.Queries.SearchTickets;
+using SupportDesk.Application.Features.Tickets.Triage;
+using SupportDesk.Domain;
+using SupportDesk.Domain.Aggregates.Agents;
 
 namespace SupportDesk.Application;
 
@@ -24,6 +27,9 @@ public static class DependencyInjection
         services.AddScoped<AssignTicketCommandHandler>();
         services.AddScoped<SearchTicketsQueryHandler>();
         services.AddScoped<GetTicketQueryHandler>();
+        services.AddScoped<PriorityPolicy>();
+        services.AddScoped<AgentSelector>();
+        services.AddScoped<TicketTriage>();
 
         services.AddScoped<GetCustomersQueryHandler>();
         services.AddScoped<GetCustomerQueryHandler>();

@@ -48,6 +48,15 @@ public sealed class Ticket : AggregateRoot
     /// <summary>True while the ticket still needs work from an agent.</summary>
     public bool IsOpen => Status is not (TicketStatus.Resolved or TicketStatus.Closed);
 
+    public bool CanBeEscalated => IsOpen && Priority != TicketPriority.Critical;
+
+    public string? EscalationBlockedReason =>
+        Priority == TicketPriority.Critical
+            ? $"Ticket {Reference} is already Critical and cannot be escalated"
+            : !IsOpen
+                ? $"Ticket {Reference} is {Status} and cannot be escalated"
+                : null;
+
     /// <summary>
     /// Raises a new ticket for a customer. It starts as <see cref="TicketStatus.New"/>, with no
     /// owner and no due date.
@@ -59,7 +68,9 @@ public sealed class Ticket : AggregateRoot
         int customerId,
         int categoryId,
         TicketPriority priority,
-        DateTime nowUtc)
+        DateTime nowUtc,
+        DateTime? dueAtUtc = null,
+        int? assignedAgentId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reference);
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
@@ -75,8 +86,48 @@ public sealed class Ticket : AggregateRoot
             Priority = priority,
             Status = TicketStatus.New,
             CreatedAtUtc = nowUtc,
-            UpdatedAtUtc = nowUtc
+            UpdatedAtUtc = nowUtc,
+            DueAtUtc = dueAtUtc,
+            AssignedAgentId = assignedAgentId
         };
+    }
+
+    public TicketEscalation Escalate(
+        TicketPriority newPriority,
+        DateTime? newDueAtUtc,
+        int? newAgentId,
+        string reason,
+        string escalatedBy,
+        DateTime nowUtc)
+    {
+        if (!CanBeEscalated)
+        {
+            throw new BusinessRuleViolationException(EscalationBlockedReason!);
+        }
+
+        if (newPriority != Priority.Next())
+        {
+            throw new BusinessRuleViolationException(
+                $"Ticket {Reference} can only be escalated one priority level at a time.");
+        }
+
+        var escalation = new TicketEscalation(
+            Id,
+            Priority,
+            newPriority,
+            AssignedAgentId,
+            newAgentId,
+            DueAtUtc,
+            newDueAtUtc,
+            reason,
+            escalatedBy,
+            nowUtc);
+
+        Priority = newPriority;
+        DueAtUtc = newDueAtUtc;
+        AssignedAgentId = newAgentId;
+        UpdatedAtUtc = nowUtc;
+        return escalation;
     }
 
     /// <summary>

@@ -127,7 +127,6 @@ and 40 tickets across every status, priority and SLA state.
 | Browser warns about the certificate | `dotnet dev-certs https --trust`, or use the web app, which proxies |
 | Web app shows "Unable to load tickets" | The API is not running, or `VITE_API_PROXY_TARGET` points at the wrong port |
 | SQL Server slow on Apple Silicon | Enable Rosetta in Docker Desktop → Settings → General |
-
 #"npm run db:up"
 #"docker compose ps"
 
@@ -147,3 +146,4 @@ Document DEFECT-117 root cause and server-side filtering
 Add the DEFECT-117 root cause, fix and regression tests, describe the
 server-side filter chain and how a slaStatus filter would be added, and
 note the Contains/collation limitation under known limitations.
+

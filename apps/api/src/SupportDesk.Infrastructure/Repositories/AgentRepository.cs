@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SupportDesk.Domain.Aggregates.Agents;
+using SupportDesk.Domain.Aggregates.Tickets;
 using SupportDesk.Domain.Repositories;
 using SupportDesk.Infrastructure.Data;
 
@@ -12,4 +13,16 @@ public sealed class AgentRepository(SupportDbContext db) : IAgentRepository
         db.Set<Agent>()
             .Include(a => a.Specializations)
             .FirstOrDefaultAsync(a => a.Id == id, ct);
+
+    public async Task<IReadOnlyList<AgentWorkload>> GetWorkloadsAsync(CancellationToken ct) =>
+        await db.Set<Agent>()
+            .AsNoTracking()
+            .Include(a => a.Specializations)
+            .Select(agent => new AgentWorkload(
+                agent,
+                db.Set<Ticket>().Count(ticket =>
+                    ticket.AssignedAgentId == agent.Id &&
+                    ticket.Status != TicketStatus.Resolved &&
+                    ticket.Status != TicketStatus.Closed)))
+            .ToListAsync(ct);
 }

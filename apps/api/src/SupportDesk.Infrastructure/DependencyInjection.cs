@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SupportDesk.Application.Abstractions;
+using SupportDesk.Domain.Aggregates.Tickets;
 using SupportDesk.Domain.Repositories;
 using SupportDesk.Infrastructure.Data;
 using SupportDesk.Infrastructure.Queries;
@@ -30,6 +31,36 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<SupportDbContext>());
 
         services.AddSingleton<IClock, SystemClock>();
+
+        services.AddSingleton(sp =>
+        {
+            var sla = configuration.GetSection("Sla");
+            var settings = new SlaSettings
+            {
+                BaseWindowHours = Enum.GetValues<TicketPriority>()
+                    .ToDictionary(
+                        priority => priority,
+                        priority => double.Parse(
+                            sla[$"BaseWindowHours:{priority}"]
+                                ?? throw new InvalidOperationException($"SLA window for {priority} is missing."),
+                            System.Globalization.CultureInfo.InvariantCulture)),
+                PremiumCustomerMultiplier = double.Parse(
+                    sla["PremiumCustomerMultiplier"]
+                        ?? throw new InvalidOperationException("Premium customer multiplier is missing."),
+                    System.Globalization.CultureInfo.InvariantCulture),
+                MinimumWindowHours = double.Parse(
+                    sla["MinimumWindowHours"]
+                        ?? throw new InvalidOperationException("Minimum SLA window is missing."),
+                    System.Globalization.CultureInfo.InvariantCulture),
+                AtRiskThresholdPercent = double.Parse(
+                    sla["AtRiskThresholdPercent"]
+                        ?? throw new InvalidOperationException("At-risk threshold is missing."),
+                    System.Globalization.CultureInfo.InvariantCulture)
+            };
+            settings.Validate();
+            return settings;
+        });
+        services.AddSingleton<SlaPolicy>();
 
         services.AddScoped<ITicketRepository, TicketRepository>();
         services.AddScoped<IAgentRepository, AgentRepository>();
