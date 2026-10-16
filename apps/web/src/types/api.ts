@@ -126,7 +126,6 @@ export interface EscalationResult {
 
 export interface EscalateTicketPayload {
   reason: string;
-  escalatedBy: string;
 }
 
 /** Everything the ticket list screen can narrow the results by. */

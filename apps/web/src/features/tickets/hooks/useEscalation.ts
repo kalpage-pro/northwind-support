@@ -5,7 +5,6 @@ import type { EscalationResult } from '../../../types/api';
 
 export interface EscalationForm {
   reason: string;
-  escalatedBy: string;
 }
 
 export function useEscalation(ticketId: number, onSuccess: (result: EscalationResult) => void) {
@@ -25,7 +24,6 @@ export function useEscalation(ticketId: number, onSuccess: (result: EscalationRe
     try {
       const result = await ticketsApi.escalateTicket(ticketId, {
         reason: form.reason.trim(),
-        escalatedBy: form.escalatedBy.trim(),
       });
       onSuccess(result);
       setSuccess('Ticket escalated successfully.');
@@ -49,11 +47,6 @@ function validate(form: EscalationForm): Record<string, string> {
   const errors: Record<string, string> = {};
   if (form.reason.trim().length < 5 || form.reason.trim().length > 500) {
     errors.reason = 'Reason must be between 5 and 500 characters';
-  }
-  if (!form.escalatedBy.trim()) {
-    errors.escalatedBy = 'EscalatedBy is required';
-  } else if (form.escalatedBy.trim().length > 100) {
-    errors.escalatedBy = 'EscalatedBy must be 100 characters or fewer';
   }
   return errors;
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useAuth } from '../../../auth/useAuth';
 import { Field } from '../../../components/Field';
 import type { EscalationResult, TicketDetail } from '../../../types/api';
 import { useEscalation, type EscalationForm } from '../hooks/useEscalation';
@@ -9,9 +10,10 @@ interface EscalationPanelProps {
 }
 
 export function EscalationPanel({ ticket, onSuccess }: EscalationPanelProps) {
-  const [form, setForm] = useState<EscalationForm>({ reason: '', escalatedBy: '' });
+  const { user } = useAuth();
+  const [form, setForm] = useState<EscalationForm>({ reason: '' });
   const { submit, isSaving, errors, submitError, success } = useEscalation(ticket.id, (result) => {
-    setForm({ reason: '', escalatedBy: '' });
+    setForm({ reason: '' });
     onSuccess(result);
   });
 
@@ -27,6 +29,7 @@ export function EscalationPanel({ ticket, onSuccess }: EscalationPanelProps) {
   return (
     <div className="card">
       <h2>Escalate ticket</h2>
+      <p>Escalating as {user?.fullName}</p>
       <form className="form" onSubmit={(event) => { event.preventDefault(); void submit(form); }} noValidate>
         <Field id="escalation-reason" label="Reason" error={errors.reason} hint={`${form.reason.length}/500 characters`}>
           {(fieldProps) => (
@@ -36,17 +39,6 @@ export function EscalationPanel({ ticket, onSuccess }: EscalationPanelProps) {
               maxLength={500}
               value={form.reason}
               onChange={(event) => setForm((current) => ({ ...current, reason: event.target.value }))}
-            />
-          )}
-        </Field>
-        <Field id="escalation-by" label="Escalated by" error={errors.escalatedBy}>
-          {(fieldProps) => (
-            <input
-              {...fieldProps}
-              type="text"
-              maxLength={100}
-              value={form.escalatedBy}
-              onChange={(event) => setForm((current) => ({ ...current, escalatedBy: event.target.value }))}
             />
           )}
         </Field>

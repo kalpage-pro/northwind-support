@@ -9,6 +9,14 @@ import { EscalationPanel } from './EscalationPanel';
 import { TicketSummary } from './TicketSummary';
 
 vi.mock('../../../api/tickets', () => ({ ticketsApi: { escalateTicket: vi.fn() } }));
+vi.mock('../../../auth/useAuth', () => ({
+  useAuth: () => ({
+    user: { id: 7, fullName: 'Alex Turner', email: 'alex@example.com' },
+    isAuthenticated: true,
+    login: vi.fn(),
+    logout: vi.fn(),
+  }),
+}));
 
 const escalateTicket = vi.mocked(ticketsApi.escalateTicket);
 const result: EscalationResult = {
@@ -36,7 +44,6 @@ describe('EscalationPanel', () => {
     const user = userEvent.setup();
     renderPanel();
     await user.type(screen.getByLabelText('Reason'), 'bad');
-    await user.type(screen.getByLabelText('Escalated by'), 'Alex');
     await user.click(screen.getByRole('button', { name: 'Escalate ticket' }));
     expect(screen.getByText('Reason must be between 5 and 500 characters')).toBeInTheDocument();
     expect(escalateTicket).not.toHaveBeenCalled();
@@ -48,7 +55,6 @@ describe('EscalationPanel', () => {
     fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'x'.repeat(501) } });
     await user.click(screen.getByRole('button', { name: 'Escalate ticket' }));
     expect(screen.getByText('Reason must be between 5 and 500 characters')).toBeInTheDocument();
-    expect(screen.getByText('EscalatedBy is required')).toBeInTheDocument();
     expect(escalateTicket).not.toHaveBeenCalled();
   });
 
@@ -58,10 +64,9 @@ describe('EscalationPanel', () => {
     escalateTicket.mockReturnValueOnce(new Promise((done) => { resolve = done; }));
     const { onSuccess } = renderPanel();
     fireEvent.change(screen.getByLabelText('Reason'), { target: { value: '  A valid reason  ' } });
-    fireEvent.change(screen.getByLabelText('Escalated by'), { target: { value: '  Alex  ' } });
     await user.click(screen.getByRole('button', { name: 'Escalate ticket' }));
     expect(screen.getByRole('button', { name: 'Escalating ticket...' })).toBeDisabled();
-    expect(escalateTicket).toHaveBeenCalledWith(12, { reason: 'A valid reason', escalatedBy: 'Alex' });
+    expect(escalateTicket).toHaveBeenCalledWith(12, { reason: 'A valid reason' });
     resolve(result);
     expect(await screen.findByText('Ticket escalated successfully.')).toBeInTheDocument();
     expect(onSuccess).toHaveBeenCalledWith(result);
@@ -79,13 +84,18 @@ describe('EscalationPanel', () => {
       </>,
     );
     fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'A valid reason' } });
-    fireEvent.change(screen.getByLabelText('Escalated by'), { target: { value: 'Alex' } });
     await user.click(screen.getByRole('button', { name: 'Escalate ticket' }));
     expect(await screen.findByText('Ticket is already Critical')).toBeInTheDocument();
     expect(screen.getByLabelText('Reason')).toHaveValue('A valid reason');
     expect(screen.getByText('High')).toBeInTheDocument();
     expect(screen.getByText('At risk')).toBeInTheDocument();
     expect(onSuccess).not.toHaveBeenCalled();
+  });
+
+  it('shows the authenticated agent as the escalation actor', () => {
+    renderPanel();
+
+    expect(screen.getByText('Escalating as Alex Turner')).toBeInTheDocument();
   });
 
   it.each([

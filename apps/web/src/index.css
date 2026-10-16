@@ -76,6 +76,13 @@ a {
   font-weight: 600;
 }
 
+.app__account {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
 .app__main {
   max-width: 1200px;
   margin: 0 auto;
