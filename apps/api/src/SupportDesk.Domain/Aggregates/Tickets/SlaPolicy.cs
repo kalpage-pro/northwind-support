@@ -20,6 +20,9 @@ public sealed class SlaPolicy(SlaSettings settings)
     public DateTime DueAt(TicketPriority priority, CustomerTier tier, DateTime fromUtc) =>
         fromUtc + WindowFor(priority, tier);
 
+    public DateTime AtRiskBoundaryUtc(TicketPriority priority, CustomerTier tier, DateTime nowUtc) =>
+        nowUtc + (WindowFor(priority, tier) * (settings.AtRiskThresholdPercent / 100d));
+
     public SlaStatus Evaluate(
         DateTime? dueAtUtc,
         DateTime? resolvedAtUtc,
@@ -42,8 +45,8 @@ public sealed class SlaPolicy(SlaSettings settings)
             return SlaStatus.Breached;
         }
 
-        var remaining = dueAtUtc.Value - nowUtc;
-        var threshold = WindowFor(priority, tier) * (settings.AtRiskThresholdPercent / 100d);
-        return remaining <= threshold ? SlaStatus.AtRisk : SlaStatus.WithinSla;
+        return dueAtUtc.Value <= AtRiskBoundaryUtc(priority, tier, nowUtc)
+            ? SlaStatus.AtRisk
+            : SlaStatus.WithinSla;
     }
 }

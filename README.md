@@ -85,7 +85,14 @@ search, and delaying the search-driven page reset until the search settles.
 
 The API applies one small method per filter through an `ApplyFilters` chain before counting,
 sorting and paging. Each method leaves the query unchanged when its filter is not supplied, so
-filters combine with AND; a future `slaStatus` filter can be added as one more method in the chain.
+Filters are combined using the 'AND' operator. 
+
+The `slaStatus` filter performs comparisons against priority/tier thresholds using specific `DateTime` constant values. 
+
+Consequently, this predicate functions correctly in both SQL Server and SQLite environments. 
+To inspect the SQL query generated for `slaStatus=AtRisk`, you can pause execution after the `ApplyFilters` step within `TicketQueries.GetPagedAsync` and evaluate `tickets.ToQueryString()`. 
+
+This same filtered query is utilized for both the `CountAsync` operation and the retrieval of paginated results.
 
 ### Known limitations
 
@@ -297,3 +304,13 @@ Persistence for ticket escalations, EF migration, automatic creation of escalati
 Added the 'AddTicketEscalations' migration.
 Verified formatting, build, and tests: 100 tests passed.
 Confirmed that the API starts, the migration is applied, and the seeding is successful.
+
+2.1.1
+Filters are combined using the 'AND' operator. 
+
+The `slaStatus` filter performs comparisons against priority/tier thresholds using specific `DateTime` constant values. 
+
+Consequently, this predicate functions correctly in both SQL Server and SQLite environments. 
+To inspect the SQL query generated for `slaStatus=AtRisk`, you can pause execution after the `ApplyFilters` step within `TicketQueries.GetPagedAsync` and evaluate `tickets.ToQueryString()`. 
+
+This same filtered query is utilized for both the `CountAsync` operation and the retrieval of paginated results.

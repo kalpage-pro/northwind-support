@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using SupportDesk.Application.Abstractions;
 using SupportDesk.Application.Contracts.Common;
@@ -22,11 +23,10 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock, SlaPolicy s
     /// </remarks>
     public async Task<PagedResult<TicketListItemDto>> GetPagedAsync(TicketQuery query, CancellationToken ct)
     {
-        var tickets = ApplyFilters(TicketsWithLabels(), query);
+        var now = clock.UtcNow;
+        var tickets = ApplyFilters(TicketsWithLabels(), query, now);
 
         var totalCount = await tickets.CountAsync(ct);
-
-        var now = clock.UtcNow;
 
         var items = await ApplySort(tickets, query)
             .Skip((query.Page - 1) * query.PageSize)
@@ -168,10 +168,14 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock, SlaPolicy s
         from agent in db.Set<Agent>().Where(a => a.Id == ticket.AssignedAgentId).DefaultIfEmpty()
         select new TicketWithLabels { Ticket = ticket, Customer = customer, Category = category, Agent = agent };
 
-    private static IQueryable<TicketWithLabels> ApplyFilters(IQueryable<TicketWithLabels> source, TicketQuery query)
+    private IQueryable<TicketWithLabels> ApplyFilters(
+        IQueryable<TicketWithLabels> source,
+        TicketQuery query,
+        DateTime nowUtc)
     {
         source = FilterByStatus(source, query.Status);
         source = FilterByPriority(source, query.Priority);
+        source = FilterBySlaStatus(source, query.SlaStatus, nowUtc);
         source = FilterByCategory(source, query.CategoryId);
         source = FilterByCustomer(source, query.CustomerId);
         source = FilterByAssignedAgent(source, query.AssignedAgentId);
@@ -179,6 +183,84 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock, SlaPolicy s
         source = FilterBySearch(source, query.Search);
 
         return source;
+    }
+
+    private IQueryable<TicketWithLabels> FilterBySlaStatus(
+        IQueryable<TicketWithLabels> source,
+        SlaStatus? status,
+        DateTime nowUtc)
+    {
+        if (status is null)
+        {
+            return source;
+        }
+
+        var parameter = Expression.Parameter(typeof(TicketWithLabels), "x");
+        var ticket = Expression.Property(parameter, nameof(TicketWithLabels.Ticket));
+        var dueAt = Expression.Property(ticket, nameof(Ticket.DueAtUtc));
+        var resolvedAt = Expression.Property(ticket, nameof(Ticket.ResolvedAtUtc));
+        var dueValue = Expression.Property(dueAt, nameof(Nullable<DateTime>.Value));
+        var resolvedValue = Expression.Property(resolvedAt, nameof(Nullable<DateTime>.Value));
+        var dueExists = Expression.NotEqual(dueAt, Expression.Constant(null, typeof(DateTime?)));
+        var resolvedExists = Expression.NotEqual(resolvedAt, Expression.Constant(null, typeof(DateTime?)));
+        var now = Expression.Constant(nowUtc);
+        var boundaryMatches = BuildBoundaryMatches(parameter, dueValue, nowUtc);
+
+        Expression predicate = status.Value switch
+        {
+            SlaStatus.NotApplicable => Expression.Not(dueExists),
+            SlaStatus.Met => Expression.AndAlso(
+                dueExists,
+                Expression.AndAlso(resolvedExists, Expression.LessThanOrEqual(resolvedValue, dueValue))),
+            SlaStatus.Breached => Expression.AndAlso(
+                dueExists,
+                Expression.OrElse(
+                    Expression.AndAlso(resolvedExists, Expression.GreaterThan(resolvedValue, dueValue)),
+                    Expression.AndAlso(Expression.Not(resolvedExists), Expression.GreaterThan(now, dueValue)))),
+            SlaStatus.AtRisk => Expression.AndAlso(
+                dueExists,
+                Expression.AndAlso(
+                    Expression.Not(resolvedExists),
+                    Expression.AndAlso(
+                        Expression.LessThanOrEqual(now, dueValue),
+                        boundaryMatches))),
+            SlaStatus.WithinSla => Expression.AndAlso(
+                dueExists,
+                Expression.AndAlso(
+                    Expression.Not(resolvedExists),
+                    Expression.AndAlso(
+                        Expression.LessThanOrEqual(now, dueValue),
+                        Expression.Not(boundaryMatches)))),
+            _ => throw new ArgumentOutOfRangeException(nameof(status), status, null)
+        };
+
+        return source.Where(Expression.Lambda<Func<TicketWithLabels, bool>>(predicate, parameter));
+    }
+
+    // Build the enum cross-product explicitly so each provider compares dates to captured constants.
+    private Expression BuildBoundaryMatches(ParameterExpression parameter, MemberExpression dueValue, DateTime nowUtc)
+    {
+        var ticket = Expression.Property(parameter, nameof(TicketWithLabels.Ticket));
+        var priority = Expression.Property(ticket, nameof(Ticket.Priority));
+        var tier = Expression.Property(Expression.Property(parameter, nameof(TicketWithLabels.Customer)), nameof(Customer.Tier));
+        Expression? matches = null;
+
+        foreach (var priorityValue in Enum.GetValues<TicketPriority>())
+        {
+            foreach (var tierValue in Enum.GetValues<CustomerTier>())
+            {
+                var boundary = Expression.LessThanOrEqual(
+                    dueValue,
+                    Expression.Constant(slaPolicy.AtRiskBoundaryUtc(priorityValue, tierValue, nowUtc)));
+                var pair = Expression.AndAlso(
+                    Expression.Equal(priority, Expression.Constant(priorityValue)),
+                    Expression.Equal(tier, Expression.Constant(tierValue)));
+                var match = Expression.AndAlso(pair, boundary);
+                matches = matches is null ? match : Expression.OrElse(matches, match);
+            }
+        }
+
+        return matches!;
     }
 
     private static IQueryable<TicketWithLabels> FilterByStatus(
