@@ -72,6 +72,30 @@ describe('useTicketList', () => {
     );
   });
 
+  it('requests immediately for an SLA status filter and keeps other filters', async () => {
+    const { result } = renderHook(() => useTicketList());
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+    act(() => {
+      result.current.updateFilters({ status: 'InProgress', slaStatus: 'AtRisk', page: 3 });
+    });
+    getTickets.mockClear();
+
+    act(() => {
+      result.current.updateFilters({ slaStatus: 'Breached' });
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(getTickets).toHaveBeenCalledTimes(1);
+    expect(getTickets).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: 'InProgress', slaStatus: 'Breached', page: 1 }),
+    );
+  });
+
   it('keeps an earlier status when the search text changes, and sends one request per settled search', async () => {
     const { result } = renderHook(() => useTicketList());
 
