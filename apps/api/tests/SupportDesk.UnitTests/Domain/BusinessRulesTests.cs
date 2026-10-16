@@ -404,8 +404,13 @@ public sealed class BusinessRulesTests
     {
         var originalDueAt = Now.AddHours(StandardMediumHours);
         var newDueAt = Now.AddHours(StandardHighHours);
-        var ticket = Ticket.Raise("TCK-0042", "Title", "Description", 1, GeneralCategoryId,
-            TicketPriority.Medium, Now, originalDueAt, assignedAgentId: 7);
+        var ticket = new TicketBuilder()
+            .WithReference("TCK-0042")
+            .WithCategoryId(GeneralCategoryId)
+            .WithPriority(TicketPriority.Medium)
+            .DueAt(originalDueAt)
+            .AssignedTo(7)
+            .Build();
         var escalatedAt = Now.AddMinutes(10);
 
         var history = ticket.Escalate(TicketPriority.High, newDueAt, 8,
@@ -452,8 +457,13 @@ public sealed class BusinessRulesTests
     {
         var creationTime = Now;
         var escalationTime = Now.AddHours(2);
-        var ticket = Ticket.Raise("TCK-0043", "Title", "Description", 1, GeneralCategoryId,
-            TicketPriority.Medium, creationTime, creationTime.AddHours(StandardMediumHours));
+        var ticket = new TicketBuilder()
+            .WithReference("TCK-0043")
+            .WithCategoryId(GeneralCategoryId)
+            .WithPriority(TicketPriority.Medium)
+            .CreatedAt(creationTime)
+            .DueAt(creationTime.AddHours(StandardMediumHours))
+            .Build();
 
         var result = NewTriage().PlanEscalation(ticket, GeneralCategory(), CustomerTier.Standard,
             [], escalationTime);

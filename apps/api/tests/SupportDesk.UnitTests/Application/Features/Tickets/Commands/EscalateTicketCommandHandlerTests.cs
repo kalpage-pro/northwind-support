@@ -23,8 +23,11 @@ public sealed class EscalateTicketCommandHandlerTests
     public async Task HandleAsync_IncreasesPriorityComputesDueDateAddsHistoryAndSavesOnce()
     {
         var context = new HandlerContext();
-        var ticket = Ticket.Raise("TCK-0044", "Title", "Description", 1, 1,
-            TicketPriority.Medium, context.Clock.UtcNow, context.Clock.UtcNow.AddHours(24));
+        var ticket = new TicketBuilder()
+            .WithReference("TCK-0044")
+            .WithPriority(TicketPriority.Medium)
+            .DueAt(context.Clock.UtcNow.AddHours(24))
+            .Build();
         context.Tickets.Setup(t => t.GetByIdAsync(4, It.IsAny<CancellationToken>())).ReturnsAsync(ticket);
 
         var result = await context.Handler.HandleAsync(
@@ -44,9 +47,11 @@ public sealed class EscalateTicketCommandHandlerTests
     {
         var context = new HandlerContext();
         var current = Agent(7, "Current", 1);
-        var ticket = Ticket.Raise("TCK-0045", "Title", "Description", 1, 1,
-            TicketPriority.Medium, context.Clock.UtcNow);
-        ticket.AssignTo(current.Id, context.Clock.UtcNow);
+        var ticket = new TicketBuilder()
+            .WithReference("TCK-0045")
+            .WithPriority(TicketPriority.Medium)
+            .AssignedTo(current.Id)
+            .Build();
         context.Tickets.Setup(t => t.GetByIdAsync(5, It.IsAny<CancellationToken>())).ReturnsAsync(ticket);
         context.Agents.Setup(a => a.GetWorkloadsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync([new AgentWorkload(current, 1)]);
@@ -63,9 +68,11 @@ public sealed class EscalateTicketCommandHandlerTests
         var context = new HandlerContext();
         var current = Agent(7, "Inactive", 10, isActive: false);
         var replacement = Agent(8, "Replacement", 10);
-        var ticket = Ticket.Raise("TCK-0046", "Title", "Description", 1, 1,
-            TicketPriority.Medium, context.Clock.UtcNow);
-        ticket.AssignTo(current.Id, context.Clock.UtcNow);
+        var ticket = new TicketBuilder()
+            .WithReference("TCK-0046")
+            .WithPriority(TicketPriority.Medium)
+            .AssignedTo(current.Id)
+            .Build();
         context.Tickets.Setup(t => t.GetByIdAsync(6, It.IsAny<CancellationToken>())).ReturnsAsync(ticket);
         context.Agents.Setup(a => a.GetWorkloadsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync([new AgentWorkload(current, 1), new AgentWorkload(replacement, 2)]);
@@ -81,9 +88,11 @@ public sealed class EscalateTicketCommandHandlerTests
     {
         var context = new HandlerContext();
         var full = Agent(9, "Inactive", 1, isActive: false);
-        var ticket = Ticket.Raise("TCK-0047", "Title", "Description", 1, 1,
-            TicketPriority.Medium, context.Clock.UtcNow);
-        ticket.AssignTo(full.Id, context.Clock.UtcNow);
+        var ticket = new TicketBuilder()
+            .WithReference("TCK-0047")
+            .WithPriority(TicketPriority.Medium)
+            .AssignedTo(full.Id)
+            .Build();
         context.Tickets.Setup(t => t.GetByIdAsync(7, It.IsAny<CancellationToken>())).ReturnsAsync(ticket);
         context.Agents.Setup(a => a.GetWorkloadsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync([new AgentWorkload(full, 1)]);

@@ -94,11 +94,63 @@ To inspect the SQL query generated for `slaStatus=AtRisk`, you can pause executi
 
 This same filtered query is utilized for both the `CountAsync` operation and the retrieval of paginated results.
 
+## Task 2 frontend
+
+The React client in `apps/web` now includes:
+
+- SLA filtering for Within SLA, At risk, Breached, Met and No SLA.
+- A shared SLA indicator with a visible label and distinct symbol for every state.
+- Creation-time triage results showing applied priority, priority reason, due date, SLA window and assignment reason.
+- Ticket escalation with client-side validation matching the API limits and messages.
+- Pending, success, validation and server-conflict states for escalation.
+- Escalation history showing priority, agent, due-date, reason, actor and timestamp changes.
+- Automatic refresh of ticket details and escalation history after a successful escalation.
+
+No new frontend dependencies were added. The implementation reuses the existing API client,
+async-data hooks, form fields, badges, loading states, error states and formatting helpers.
+
+### Manual frontend test
+
+With SQL Server, the API and the web app running, open `http://localhost:5173/tickets`.
+
+1. Change the SLA status filter. Confirm the list refreshes, the request contains `slaStatus`, pagination returns to page 1, and Clear filters removes it.
+2. Create a ticket. Confirm the result shows the priority and reason, due date, SLA window and assignment result. Open the new ticket.
+3. On an eligible ticket, submit a valid escalation. Confirm the button becomes pending, the ticket updates without a full reload, the form clears and a history row appears.
+4. Submit a short reason or blank escalated-by value. Confirm validation appears and no POST request is sent.
+5. Open a Critical, Resolved or Closed ticket. Confirm escalation is disabled with an explanation.
+6. For stale data handling, open one eligible ticket in two tabs, escalate it in the first tab, then submit the old form in the second tab. Confirm the 409 message appears, the form remains populated and the ticket summary is unchanged.
+
+Swagger is available at `https://localhost:7043/swagger`. Task 2 endpoints include:
+
+```text
+POST /api/tickets/{id}/escalate
+GET  /api/tickets/{id}/escalations
+GET  /api/tickets?slaStatus=AtRisk
+```
+
+### Task 2 verification
+
+```bash
+npm run format
+dotnet build --no-restore
+dotnet test SupportDesk.sln --no-build --no-restore
+npm run lint
+npm run typecheck
+npm run test --workspace apps/web
+```
+
+The backend suite passes with 104 tests. The web suite passes with 15 tests across 5 test files.
+
 ### Known limitations
 
 Search uses `Contains`, which creates a leading wildcard and cannot use an index. Search
 case-sensitivity follows the database collation. Authentication, notifications, caching and the
 other out-of-scope assignment features remain future work.
+
+The build reports a pre-existing transitive `System.Security.Cryptography.Pkcs` package warning
+with known moderate and high severity advisories; it was not introduced by this work. After Task
+3 authentication packages are added, run `dotnet list package --vulnerable` again and update this
+note if the warning remains.
 
 ## Commands
 
@@ -114,9 +166,11 @@ other out-of-scope assignment features remain future work.
 
 | Endpoint | Description |
 | --- | --- |
-| `GET /api/tickets` | Paged list with `search`, `status`, `priority`, `categoryId`, `customerId`, `assignedAgentId`, `unassignedOnly`, `sortBy`, `sortDirection`. Filters are applied server-side before counting and paging. |
+| `GET /api/tickets` | Paged list with `search`, `status`, `priority`, `slaStatus`, `categoryId`, `customerId`, `assignedAgentId`, `unassignedOnly`, `sortBy`, `sortDirection`. Filters are applied server-side before counting and paging. |
 | `GET /api/tickets/{id}` | One ticket |
 | `POST /api/tickets` | Create a ticket |
+| `POST /api/tickets/{id}/escalate` | Escalate a ticket and return the updated ticket plus history entry |
+| `GET /api/tickets/{id}/escalations` | Return escalation history, newest first |
 | `PATCH /api/tickets/{id}/status` · `/assignment` | Change status / assignee |
 | `GET /api/customers` · `/api/agents` · `/api/categories` | Reference data |
 
@@ -314,3 +368,8 @@ Consequently, this predicate functions correctly in both SQL Server and SQLite e
 To inspect the SQL query generated for `slaStatus=AtRisk`, you can pause execution after the `ApplyFilters` step within `TicketQueries.GetPagedAsync` and evaluate `tickets.ToQueryString()`. 
 
 This same filtered query is utilized for both the `CountAsync` operation and the retrieval of paginated results.
+
+
+2.2 and 2.3 get 3.30 h with testing not completed
+
+complete at 4.30h

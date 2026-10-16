@@ -10,14 +10,32 @@ namespace SupportDesk.UnitTests.TestDoubles;
 public sealed class TicketBuilder
 {
     private string _reference = "TCK-0001";
+    private string _title = "Something is not working";
+    private string _description = "A description long enough to be realistic.";
     private TicketPriority _priority = TicketPriority.Medium;
     private TicketStatus _status = TicketStatus.New;
+    private int _customerId = 1;
+    private int _categoryId = 1;
     private int? _assignedAgentId;
+    private DateTime _createdAtUtc = FixedClock.DefaultNow;
+    private DateTime? _dueAtUtc;
     private DateTime? _resolvedAtUtc;
 
     public TicketBuilder WithReference(string reference)
     {
         _reference = reference;
+        return this;
+    }
+
+    public TicketBuilder WithTitle(string title)
+    {
+        _title = title;
+        return this;
+    }
+
+    public TicketBuilder WithDescription(string description)
+    {
+        _description = description;
         return this;
     }
 
@@ -33,9 +51,33 @@ public sealed class TicketBuilder
         return this;
     }
 
+    public TicketBuilder WithCustomerId(int customerId)
+    {
+        _customerId = customerId;
+        return this;
+    }
+
+    public TicketBuilder WithCategoryId(int categoryId)
+    {
+        _categoryId = categoryId;
+        return this;
+    }
+
     public TicketBuilder AssignedTo(int? agentId)
     {
         _assignedAgentId = agentId;
+        return this;
+    }
+
+    public TicketBuilder CreatedAt(DateTime createdAtUtc)
+    {
+        _createdAtUtc = createdAtUtc;
+        return this;
+    }
+
+    public TicketBuilder DueAt(DateTime? dueAtUtc)
+    {
+        _dueAtUtc = dueAtUtc;
         return this;
     }
 
@@ -50,21 +92,22 @@ public sealed class TicketBuilder
     {
         var ticket = Ticket.Raise(
             _reference,
-            "Something is not working",
-            "A description long enough to be realistic.",
-            customerId: 1,
-            categoryId: 1,
+            _title,
+            _description,
+            customerId: _customerId,
+            categoryId: _categoryId,
             _priority,
-            FixedClock.DefaultNow);
+            _createdAtUtc,
+            _dueAtUtc);
 
         if (_assignedAgentId is not null)
         {
-            ticket.AssignTo(_assignedAgentId, FixedClock.DefaultNow);
+            ticket.AssignTo(_assignedAgentId, _createdAtUtc);
         }
 
         if (_status != TicketStatus.New)
         {
-            ticket.ChangeStatus(_status, _resolvedAtUtc ?? FixedClock.DefaultNow);
+            ticket.ChangeStatus(_status, _resolvedAtUtc ?? _createdAtUtc);
         }
 
         return ticket;

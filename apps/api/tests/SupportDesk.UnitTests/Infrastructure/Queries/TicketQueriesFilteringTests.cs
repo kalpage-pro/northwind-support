@@ -63,30 +63,29 @@ public sealed class TicketQueriesFilteringTests : IDisposable
 
         for (var index = 1; index <= 20; index++)
         {
-            var ticket = Ticket.Raise(
-                $"TCK-{index:0000}",
-                index == 1 ? "Invoice access issue" : $"Ticket {index}",
-                "Test description",
-                index <= 10 ? customerId : otherCustomerId,
-                index % 2 == 1 ? generalCategoryId : billingCategoryId,
-                index <= 7 ? TicketPriority.High : TicketPriority.Low,
-                FixedClock.DefaultNow.AddMinutes(index));
+            var builder = new TicketBuilder()
+                .WithReference($"TCK-{index:0000}")
+                .WithCustomerId(index <= 10 ? customerId : otherCustomerId)
+                .WithCategoryId(index % 2 == 1 ? generalCategoryId : billingCategoryId)
+                .WithPriority(index <= 7 ? TicketPriority.High : TicketPriority.Low)
+                .WithTitle(index == 1 ? "Invoice access issue" : $"Ticket {index}")
+                .CreatedAt(FixedClock.DefaultNow.AddMinutes(index));
 
             if (index <= 5)
             {
-                ticket.ChangeStatus(TicketStatus.InProgress, FixedClock.DefaultNow.AddMinutes(index));
+                builder.WithStatus(TicketStatus.InProgress);
             }
 
             if (index <= 4)
             {
-                ticket.AssignTo(firstAgentId, FixedClock.DefaultNow.AddMinutes(index));
+                builder.AssignedTo(firstAgentId);
             }
             else if (index <= 8)
             {
-                ticket.AssignTo(secondAgentId, FixedClock.DefaultNow.AddMinutes(index));
+                builder.AssignedTo(secondAgentId);
             }
 
-            db.Add(ticket);
+            db.Add(builder.Build());
         }
 
         db.SaveChanges();

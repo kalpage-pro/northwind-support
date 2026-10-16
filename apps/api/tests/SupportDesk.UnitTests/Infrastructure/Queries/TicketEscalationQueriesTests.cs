@@ -36,11 +36,20 @@ public sealed class TicketEscalationQueriesTests : IDisposable
         db.AddRange(customer, category, fromAgent, toAgent);
         db.SaveChanges();
 
-        ticket = Ticket.Raise("TCK-0100", "Escalation ticket", "A ticket for history testing.",
-            customer.Id, category.Id, TicketPriority.Critical, FixedClock.DefaultNow,
-            FixedClock.DefaultNow.AddHours(1), fromAgent.Id);
-        otherTicket = Ticket.Raise("TCK-0101", "Other ticket", "Another ticket.",
-            customer.Id, category.Id, TicketPriority.High, FixedClock.DefaultNow);
+        ticket = new TicketBuilder()
+            .WithReference("TCK-0100")
+            .WithCustomerId(customer.Id)
+            .WithCategoryId(category.Id)
+            .WithPriority(TicketPriority.Critical)
+            .DueAt(FixedClock.DefaultNow.AddHours(1))
+            .AssignedTo(fromAgent.Id)
+            .Build();
+        otherTicket = new TicketBuilder()
+            .WithReference("TCK-0101")
+            .WithCustomerId(customer.Id)
+            .WithCategoryId(category.Id)
+            .WithPriority(TicketPriority.High)
+            .Build();
         db.AddRange(ticket, otherTicket);
         db.SaveChanges();
 

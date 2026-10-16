@@ -172,14 +172,19 @@ public sealed class TicketQueriesSlaFilteringTests : IDisposable
         DateTime? resolvedAtUtc = null)
     {
         var customerId = tier == CustomerTier.Premium ? premiumCustomerId : standardCustomerId;
-        var ticket = Ticket.Raise(
-            reference, "SLA ticket", "Description", customerId, categoryId, priority, now, dueAtUtc);
+        var builder = new TicketBuilder()
+            .WithReference(reference)
+            .WithCustomerId(customerId)
+            .WithCategoryId(categoryId)
+            .WithPriority(priority)
+            .CreatedAt(now)
+            .DueAt(dueAtUtc);
         if (resolvedAtUtc is not null)
         {
-            ticket.ChangeStatus(TicketStatus.Resolved, resolvedAtUtc.Value);
+            builder.WithStatus(TicketStatus.Resolved).ResolvedAt(resolvedAtUtc);
         }
 
-        db.Add(ticket);
+        db.Add(builder.Build());
     }
 
     private Task<PagedResult<TicketListItemDto>> GetAsync(TicketQuery query) =>
