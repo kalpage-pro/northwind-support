@@ -14,6 +14,11 @@ public sealed class AgentRepository(SupportDbContext db) : IAgentRepository
             .Include(a => a.Specializations)
             .FirstOrDefaultAsync(a => a.Id == id, ct);
 
+    public Task<Agent?> GetByEmailAsync(string email, CancellationToken ct) =>
+        db.Set<Agent>()
+            .Include(a => a.Specializations)
+            .FirstOrDefaultAsync(a => a.Email.ToLower() == email.ToLower(), ct);
+
     public async Task<IReadOnlyList<AgentWorkload>> GetWorkloadsAsync(CancellationToken ct) =>
         await db.Set<Agent>()
             .AsNoTracking()

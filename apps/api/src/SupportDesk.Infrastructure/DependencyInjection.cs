@@ -33,8 +33,9 @@ public static class DependencyInjection
 
         services.AddSingleton<IClock, SystemClock>();
         services.AddSingleton<IPasswordHasher, PasswordHasherService>();
+        services.AddSingleton<IJwtTokenService, JwtTokenService>();
 
-        var jwt = BindJwtSettings(configuration);
+        var jwt = JwtSettings.FromConfiguration(configuration);
         services.AddSingleton(jwt);
 
         services.AddSingleton(sp =>
@@ -83,19 +84,4 @@ public static class DependencyInjection
         return services;
     }
 
-    private static JwtSettings BindJwtSettings(IConfiguration configuration)
-    {
-        var section = configuration.GetSection("Jwt");
-        var settings = new JwtSettings
-        {
-            Key = section["Key"] ?? string.Empty,
-            Issuer = section["Issuer"] ?? string.Empty,
-            Audience = section["Audience"] ?? string.Empty,
-            LifetimeMinutes = int.TryParse(section["LifetimeMinutes"], out var lifetimeMinutes)
-                ? lifetimeMinutes
-                : 0
-        };
-        settings.Validate();
-        return settings;
-    }
 }

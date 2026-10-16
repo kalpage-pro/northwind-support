@@ -10,6 +10,15 @@ public sealed class PasswordHasherService : IPasswordHasher
 
     public string Hash(string password) => hasher.HashPassword(new object(), password);
 
-    public bool Verify(string hash, string password) =>
-        hasher.VerifyHashedPassword(new object(), hash, password) is PasswordVerificationResult.Success;
+    public bool Verify(string hash, string password)
+    {
+        try
+        {
+            return hasher.VerifyHashedPassword(new object(), hash, password) is PasswordVerificationResult.Success;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
 }

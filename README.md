@@ -141,10 +141,10 @@ npm run test --workspace apps/web
 
 The backend suite passes with 108 tests. The web suite passes with 15 tests across 5 test files.
 
-## Task 3 Stage 1.1: authentication foundation
+## Task 3: authentication implementation
 
-Stage 1 adds the backend foundation for agent authentication without enabling JWT bearer
-middleware yet.
+Task 3 authentication is now implemented. Agents can sign in through the API and web client,
+and the API requires a valid JWT for protected endpoints.
 
 - `Agent` stores an optional `PasswordHash` in a nullable `nvarchar(500)` column.
 - `Agent.CanSignIn` requires both an active agent and a stored password hash.
@@ -166,8 +166,8 @@ Email:    alex.turner@northwind-support.example
 Password: Dev-Only-Passw0rd!
 ```
 
-Use `yuki.tanaka@northwind-support.example` to verify that an inactive agent cannot sign in once
-the login flow is implemented. The fixture password is for local development only.
+Use `yuki.tanaka@northwind-support.example` to verify that an inactive agent cannot sign in. The
+fixture password is for local development only.
 
 JWT configuration is supplied through `Jwt__Key` in the environment. The development appsettings
 file contains only an obviously fake placeholder. Replace it locally with a long random value;
@@ -184,15 +184,16 @@ dotnet build
 dotnet test SupportDesk.sln --no-build --no-restore
 ```
 
-Stage A does not yet add login endpoints, JWT bearer middleware, authorization policies or a login
-screen. Those belong to the next authentication stage.
+The login endpoint is `POST /api/auth/login`, the current-user endpoint is `GET /api/auth/me`,
+and the API fallback authorization policy protects all other controller actions. The web client
+stores the token in browser local storage, attaches it as a bearer token, and clears the session
+when an authenticated request receives `401`.
 
 ### Known limitations
 
 Search uses `Contains`, which creates a leading wildcard and cannot use an index. Search
-case-sensitivity follows the database collation. JWT bearer middleware, login endpoints,
-authorization policies, login UI, notifications, caching and the other out-of-scope assignment
-features remain future work.
+case-sensitivity follows the database collation. Refresh tokens, MFA, roles, registration, password
+reset, notifications, caching and the other out-of-scope assignment features remain future work.
 
 The build reports a pre-existing transitive `System.Security.Cryptography.Pkcs` package warning
 with known moderate and high severity advisories; it was not introduced by this work. Run
@@ -420,3 +421,25 @@ This same filtered query is utilized for both the `CountAsync` operation and the
 2.2 and 2.3 get 3.30 h with testing not completed
 
 complete at 4.30h
+
+## Current implementation update
+
+The authentication work has since been completed beyond the original Stage 1.1 notes above.
+The implementation includes:
+
+- `POST /api/auth/login` with identical unauthorized behavior for an unknown email, wrong
+  password, or inactive agent.
+- `GET /api/auth/me` for the authenticated agent.
+- JWT validation for issuer, audience, lifetime, signing key, and the agent claims used by the API.
+- A centrally configured fallback authorization policy; only login is anonymous.
+- Password hashing with Microsoft Identity's salted `PasswordHasher`.
+- Development credentials seeded only when an agent has no existing password hash.
+- Frontend login, bearer-token attachment, protected-route handling, logout, and `401` session
+  expiry handling.
+
+Authentication verification includes login-handler tests, JWT creation and signature tests,
+wrong-password integration coverage, authenticated `/api/auth/me` coverage, and an authorization
+reflection test covering controller actions.
+
+The optional API Docker image is still not complete. `docker-compose.yml` currently starts the
+SQL Server development dependency; run the API with `npm run api` as shown above.

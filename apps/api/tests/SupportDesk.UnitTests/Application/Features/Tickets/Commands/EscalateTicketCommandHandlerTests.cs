@@ -31,7 +31,7 @@ public sealed class EscalateTicketCommandHandlerTests
         context.Tickets.Setup(t => t.GetByIdAsync(4, It.IsAny<CancellationToken>())).ReturnsAsync(ticket);
 
         var result = await context.Handler.HandleAsync(
-            4, new EscalateTicketRequest("Production impact", "lead@example.com"), CancellationToken.None);
+            4, new EscalateTicketRequest("Production impact"), CancellationToken.None);
 
         Assert.Equal(TicketPriority.High, ticket.Priority);
         Assert.Equal(context.Clock.UtcNow.AddHours(8), ticket.DueAtUtc);
@@ -40,6 +40,7 @@ public sealed class EscalateTicketCommandHandlerTests
         Assert.Equal(TicketPriority.High, context.AddedEscalation.ToPriority);
         Assert.Equal(1, context.SaveCount);
         Assert.Equal(TicketPriority.High, result.Escalation.ToPriority);
+        Assert.Equal(context.CurrentUser.Object.FullName, context.AddedEscalation.EscalatedBy);
     }
 
     [Fact]
@@ -57,7 +58,7 @@ public sealed class EscalateTicketCommandHandlerTests
             .ReturnsAsync([new AgentWorkload(current, 1)]);
 
         await context.Handler.HandleAsync(
-            5, new EscalateTicketRequest("Still severe", "lead"), CancellationToken.None);
+            5, new EscalateTicketRequest("Still severe"), CancellationToken.None);
 
         Assert.Equal(current.Id, ticket.AssignedAgentId);
     }
@@ -78,7 +79,7 @@ public sealed class EscalateTicketCommandHandlerTests
             .ReturnsAsync([new AgentWorkload(current, 1), new AgentWorkload(replacement, 2)]);
 
         await context.Handler.HandleAsync(
-            6, new EscalateTicketRequest("Still severe", "lead"), CancellationToken.None);
+            6, new EscalateTicketRequest("Still severe"), CancellationToken.None);
 
         Assert.Equal(replacement.Id, ticket.AssignedAgentId);
     }
@@ -98,7 +99,7 @@ public sealed class EscalateTicketCommandHandlerTests
             .ReturnsAsync([new AgentWorkload(full, 1)]);
 
         await context.Handler.HandleAsync(
-            7, new EscalateTicketRequest("Still severe", "lead"), CancellationToken.None);
+            7, new EscalateTicketRequest("Still severe"), CancellationToken.None);
 
         Assert.Null(ticket.AssignedAgentId);
     }
@@ -111,7 +112,7 @@ public sealed class EscalateTicketCommandHandlerTests
             .ReturnsAsync((Ticket?)null);
 
         await Assert.ThrowsAsync<NotFoundException>(() => context.Handler.HandleAsync(
-            99, new EscalateTicketRequest("Still severe", "lead"), CancellationToken.None));
+            99, new EscalateTicketRequest("Still severe"), CancellationToken.None));
 
         Assert.Equal(0, context.SaveCount);
     }
@@ -128,7 +129,7 @@ public sealed class EscalateTicketCommandHandlerTests
         context.Tickets.Setup(t => t.GetByIdAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(ticket);
 
         var exception = await Assert.ThrowsAsync<BusinessRuleViolationException>(() => context.Handler.HandleAsync(
-            10, new EscalateTicketRequest("Still severe", "lead"), CancellationToken.None));
+            10, new EscalateTicketRequest("Still severe"), CancellationToken.None));
 
         Assert.Contains(expectedMessage, exception.Message);
         Assert.Equal(0, context.SaveCount);
@@ -136,14 +137,12 @@ public sealed class EscalateTicketCommandHandlerTests
     }
 
     [Theory]
-    [InlineData("tiny", "lead")]
-    [InlineData("", "lead")]
-    [InlineData("valid reason", " ")]
-    public async Task Validator_InvalidReasonOrEscalatedBy_ReturnsExpectedErrors(
-        string reason, string escalatedBy)
+    [InlineData("tiny")]
+    [InlineData("")]
+    public async Task Validator_InvalidReason_ReturnsExpectedErrors(string reason)
     {
         var result = await new EscalateTicketRequestValidator()
-            .ValidateAsync(new EscalateTicketRequest(reason, escalatedBy));
+            .ValidateAsync(new EscalateTicketRequest(reason));
 
         Assert.False(result.IsValid);
     }
@@ -152,7 +151,7 @@ public sealed class EscalateTicketCommandHandlerTests
     public async Task Validator_ReasonLongerThanFiveHundred_ReturnsReasonError()
     {
         var result = await new EscalateTicketRequestValidator()
-            .ValidateAsync(new EscalateTicketRequest(new string('x', 501), "lead"));
+            .ValidateAsync(new EscalateTicketRequest(new string('x', 501)));
 
         Assert.Contains(result.Errors, error =>
             error.ErrorMessage == "Reason must be between 5 and 500 characters");
@@ -179,6 +178,10 @@ public sealed class EscalateTicketCommandHandlerTests
     {
         public HandlerContext()
         {
+            CurrentUser.SetupGet(user => user.AgentId).Returns(42);
+            CurrentUser.SetupGet(user => user.FullName).Returns("Current Authenticated Agent");
+            CurrentUser.SetupGet(user => user.Email).Returns("current@example.com");
+
             var queries = new Mock<ITicketQueries>();
             queries.Setup(q => q.GetDetailAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new TicketDetailDto());
@@ -191,6 +194,7 @@ public sealed class EscalateTicketCommandHandlerTests
                 Agents.Object,
                 UnitOfWork.Object,
                 Clock,
+                CurrentUser.Object,
                 new TicketTriage(new PriorityPolicy(), new SlaPolicy(Settings()), new AgentSelector()),
                 getTicket,
                 NullLogger<EscalateTicketCommandHandler>.Instance);
@@ -215,10 +219,12 @@ public sealed class EscalateTicketCommandHandlerTests
         public Mock<ICategoryRepository> Categories { get; } = new();
         public Mock<IAgentRepository> Agents { get; } = new();
         public Mock<IUnitOfWork> UnitOfWork { get; } = new();
+        public Mock<ICurrentUser> CurrentUser { get; } = new();
         public FixedClock Clock { get; } = new();
         public EscalateTicketCommandHandler Handler { get; }
         public TicketEscalation? AddedEscalation { get; private set; }
         public int SaveCount { get; private set; }
+
     }
 
     private static SlaSettings Settings() => new()

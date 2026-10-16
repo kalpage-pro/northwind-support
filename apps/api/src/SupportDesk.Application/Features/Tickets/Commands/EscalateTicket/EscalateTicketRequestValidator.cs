@@ -11,10 +11,5 @@ public sealed class EscalateTicketRequestValidator : AbstractValidator<EscalateT
             .Must(reason => reason?.Trim().Length is >= 5 and <= 500)
             .WithMessage("Reason must be between 5 and 500 characters");
 
-        RuleFor(x => x.EscalatedBy)
-            .NotEmpty()
-            .WithMessage("EscalatedBy is required")
-            .Must(value => value.Trim().Length <= 100)
-            .WithMessage("EscalatedBy must be 100 characters or fewer");
     }
 }

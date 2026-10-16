@@ -17,6 +17,7 @@ public sealed class EscalateTicketCommandHandler(
     IAgentRepository agents,
     IUnitOfWork unitOfWork,
     IClock clock,
+    ICurrentUser currentUser,
     TicketTriage triage,
     GetTicketQueryHandler getTicket,
     ILogger<EscalateTicketCommandHandler> logger)
@@ -40,7 +41,7 @@ public sealed class EscalateTicketCommandHandler(
             plan.DueAtUtc,
             plan.AssignedAgentId,
             request.Reason,
-            request.EscalatedBy,
+            currentUser.FullName,
             nowUtc);
 
         await escalations.AddAsync(escalation, ct);
