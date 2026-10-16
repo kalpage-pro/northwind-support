@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SupportDesk.Application.Abstractions;
 using SupportDesk.Domain.Aggregates.Tickets;
 using SupportDesk.Domain.Repositories;
+using SupportDesk.Infrastructure.Configuration;
 using SupportDesk.Infrastructure.Data;
 using SupportDesk.Infrastructure.Queries;
 using SupportDesk.Infrastructure.Repositories;
@@ -31,6 +32,10 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<SupportDbContext>());
 
         services.AddSingleton<IClock, SystemClock>();
+        services.AddSingleton<IPasswordHasher, PasswordHasherService>();
+
+        var jwt = BindJwtSettings(configuration);
+        services.AddSingleton(jwt);
 
         services.AddSingleton(sp =>
         {
@@ -76,5 +81,21 @@ public static class DependencyInjection
         services.AddScoped<SupportDbSeeder>();
 
         return services;
+    }
+
+    private static JwtSettings BindJwtSettings(IConfiguration configuration)
+    {
+        var section = configuration.GetSection("Jwt");
+        var settings = new JwtSettings
+        {
+            Key = section["Key"] ?? string.Empty,
+            Issuer = section["Issuer"] ?? string.Empty,
+            Audience = section["Audience"] ?? string.Empty,
+            LifetimeMinutes = int.TryParse(section["LifetimeMinutes"], out var lifetimeMinutes)
+                ? lifetimeMinutes
+                : 0
+        };
+        settings.Validate();
+        return settings;
     }
 }

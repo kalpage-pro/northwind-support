@@ -31,6 +31,8 @@ public sealed class Agent : AggregateRoot
 
     public string Email { get; private set; } = string.Empty;
 
+    public string? PasswordHash { get; private set; }
+
     /// <summary>Inactive agents keep their history but take no new work.</summary>
     public bool IsActive { get; private set; }
 
@@ -41,6 +43,15 @@ public sealed class Agent : AggregateRoot
 
     /// <summary>The ticket categories this agent is qualified for.</summary>
     public IReadOnlyCollection<AgentSpecialization> Specializations => _specializations;
+
+    public bool CanSignIn => IsActive && !string.IsNullOrWhiteSpace(PasswordHash);
+
+    public void SetPasswordHash(string passwordHash)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(passwordHash);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(passwordHash.Length, 500);
+        PasswordHash = passwordHash;
+    }
 
     /// <summary>Records that the agent is qualified for a category. Adding one twice is a no-op.</summary>
     public void AddSpecialization(int categoryId)

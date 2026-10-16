@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using SupportDesk.Application;
 using SupportDesk.Infrastructure;
+using SupportDesk.Infrastructure.Configuration;
 using SupportDesk.Presentation.Extensions;
 using SupportDesk.Presentation.Filters;
 using SupportDesk.Presentation.Middleware;
@@ -31,6 +32,9 @@ builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 
 var app = builder.Build();
+
+// Resolve the validated settings during startup, before serving requests.
+_ = app.Services.GetRequiredService<JwtSettings>();
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 

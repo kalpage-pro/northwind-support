@@ -139,18 +139,65 @@ npm run typecheck
 npm run test --workspace apps/web
 ```
 
-The backend suite passes with 104 tests. The web suite passes with 15 tests across 5 test files.
+The backend suite passes with 108 tests. The web suite passes with 15 tests across 5 test files.
+
+## Task 3 Stage 1.1: authentication foundation
+
+Stage 1 adds the backend foundation for agent authentication without enabling JWT bearer
+middleware yet.
+
+- `Agent` stores an optional `PasswordHash` in a nullable `nvarchar(500)` column.
+- `Agent.CanSignIn` requires both an active agent and a stored password hash.
+- Password hashing is exposed to Application through `IPasswordHasher` and implemented in
+  Infrastructure with Microsoft Identity Core's salted `PasswordHasher`.
+- Development seeding assigns a hash only to agents that do not already have one. It is
+  idempotent and never stores hashes through EF `HasData`.
+- JWT settings are validated at startup: issuer and audience are required, the key must be at
+  least 32 UTF-8 bytes, and lifetime must be positive.
+- The existing unique agent email index was retained. Seed emails are unique, and Yuki Tanaka
+  remains inactive for sign-in testing.
+
+### Development login fixture
+
+The runtime development seeder uses the same local fixture password for every seeded agent:
+
+```text
+Email:    alex.turner@northwind-support.example
+Password: Dev-Only-Passw0rd!
+```
+
+Use `yuki.tanaka@northwind-support.example` to verify that an inactive agent cannot sign in once
+the login flow is implemented. The fixture password is for local development only.
+
+JWT configuration is supplied through `Jwt__Key` in the environment. The development appsettings
+file contains only an obviously fake placeholder. Replace it locally with a long random value;
+never commit a real signing key.
+
+### Task 3 migration and verification
+
+The EF migration is `20261016071316_AddAgentCredentials`.
+
+```bash
+npm run ef -- migrations add AddAgentCredentials
+npm run format
+dotnet build
+dotnet test SupportDesk.sln --no-build --no-restore
+```
+
+Stage A does not yet add login endpoints, JWT bearer middleware, authorization policies or a login
+screen. Those belong to the next authentication stage.
 
 ### Known limitations
 
 Search uses `Contains`, which creates a leading wildcard and cannot use an index. Search
-case-sensitivity follows the database collation. Authentication, notifications, caching and the
-other out-of-scope assignment features remain future work.
+case-sensitivity follows the database collation. JWT bearer middleware, login endpoints,
+authorization policies, login UI, notifications, caching and the other out-of-scope assignment
+features remain future work.
 
 The build reports a pre-existing transitive `System.Security.Cryptography.Pkcs` package warning
-with known moderate and high severity advisories; it was not introduced by this work. After Task
-3 authentication packages are added, run `dotnet list package --vulnerable` again and update this
-note if the warning remains.
+with known moderate and high severity advisories; it was not introduced by this work. Run
+`dotnet list package --vulnerable` after the complete Task 3 authentication package set is added
+and update this note if the warning remains.
 
 ## Commands
 
