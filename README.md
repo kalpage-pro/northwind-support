@@ -17,7 +17,7 @@ Full requirements are in **[`ASSIGNMENT_CANDIDATE.md`](ASSIGNMENT_CANDIDATE.md)*
 | 1 | **Fix a defect, add server-side filtering** | Root cause fixed with a regression test; every list filter applied in the database with a correct count | ~2.5 h |
 | 2 | **Ticket escalation & assignment** | Automatic triage on create, escalation with history, SLA status, UI for all of it | ~7 h |
 | 3 | **Login and authentication** | Agents sign in; API rejects unauthenticated calls; login UI | ~4 h |
-| 4 | **Dockerise the API** *(optional)* | `docker compose up` gives a migrated, seeded API with no baked-in secret | ~1.5 h |
+| 4 | **Dockerise the API** *(optional, not completed)* | `docker compose up` gives a migrated, seeded API with no baked-in secret | ~1.5 h |
 
 ### Guidance
 
@@ -71,7 +71,8 @@ credentials.**
 npm test                      # dotnet test, then the web tests (Vitest)
 ```
 
-Both pass on a clean checkout and neither needs a database.
+The backend suite passes with 122 tests (4 architecture tests and 118 unit/integration tests).
+The web suite passes with 27 tests across 9 files. Neither suite needs SQL Server.
 
 ## DEFECT-117 root cause
 
@@ -139,7 +140,7 @@ npm run typecheck
 npm run test --workspace apps/web
 ```
 
-The backend suite passes with 108 tests. The web suite passes with 15 tests across 5 test files.
+The backend suite passes with 122 tests. The web suite passes with 27 tests across 9 test files.
 
 ## Task 3: authentication implementation
 
@@ -171,7 +172,9 @@ fixture password is for local development only.
 
 JWT configuration is supplied through `Jwt__Key` in the environment. The development appsettings
 file contains only an obviously fake placeholder. Replace it locally with a long random value;
-never commit a real signing key.
+never commit a real signing key. The web client stores the session in `sessionStorage` under
+`support-desk-session`, attaches the token as a bearer token, and clears the session when a
+protected request receives `401`.
 
 ### Task 3 migration and verification
 
@@ -185,9 +188,33 @@ dotnet test SupportDesk.sln --no-build --no-restore
 ```
 
 The login endpoint is `POST /api/auth/login`, the current-user endpoint is `GET /api/auth/me`,
-and the API fallback authorization policy protects all other controller actions. The web client
-stores the token in browser local storage, attaches it as a bearer token, and clears the session
-when an authenticated request receives `401`.
+and the API fallback authorization policy protects all other controller actions.
+
+## Design decisions
+
+- Domain policies keep priority, SLA, and assignment rules out of controllers and persistence
+  code. `TicketTriage` composes `PriorityPolicy`, `SlaPolicy`, and `AgentSelector` for both
+  creation and escalation.
+- Ticket list filters remain `IQueryable` expressions, so filtering, counting, sorting, paging,
+  and DTO projection are performed by the database. SLA status is derived rather than stored.
+- Escalations are immutable history records. The actor comes from authenticated claims through
+  `ICurrentUser`, not from the request body.
+- Development passwords are hashed after agents are constructed rather than through EF `HasData`.
+  Missing hashes are filled only when needed, making the seeder idempotent.
+
+## Database
+
+The schema contains agents, customers, categories, tickets, agent specializations, and ticket
+escalations. Task 2 added `TicketEscalations` with priority, assignment, due-date, reason, actor,
+and timestamp history, plus a `(TicketId, EscalatedAtUtc)` index for newest-first history. Task 3
+added nullable `Agents.PasswordHash` (`nvarchar(500)`). The migrations are
+`20261015182353_AddTicketEscalations` and `20261016071316_AddAgentCredentials`.
+
+## AI usage
+
+AI assistance was used to inspect existing behavior, suggest focused implementation changes, help
+draft tests and documentation, and review the resulting work. Suggestions were checked against
+the repository; the final code, tests, configuration, and limitations were verified locally.
 
 ### Known limitations
 
@@ -195,10 +222,13 @@ Search uses `Contains`, which creates a leading wildcard and cannot use an index
 case-sensitivity follows the database collation. Refresh tokens, MFA, roles, registration, password
 reset, notifications, caching and the other out-of-scope assignment features remain future work.
 
-The build reports a pre-existing transitive `System.Security.Cryptography.Pkcs` package warning
-with known moderate and high severity advisories; it was not introduced by this work. Run
-`dotnet list package --vulnerable` after the complete Task 3 authentication package set is added
-and update this note if the warning remains.
+The build reports a transitive `System.Security.Cryptography.Pkcs` 9.0.11 package with known high
+and moderate severity advisories (`GHSA-846f-f764-76mx` and `GHSA-2fmv-rv2c-59x7`). Run
+`dotnet list SupportDesk.sln package --vulnerable --include-transitive` to review it.
+
+Task 4 API Dockerization is not implemented: the repository has no API Dockerfile, `.dockerignore`,
+API service in `docker-compose.yml`, or `/health` endpoint. The compose file currently provides
+the SQL Server development dependency only.
 
 ## Commands
 
@@ -241,12 +271,6 @@ and 40 tickets across every status, priority and SLA state.
 
 as a first api running web running also data base are up and docker is complete
 
- Fix a defect case status In Progress show no url request but search is okey 10 -15 min
-
-http://localhost:5173/api/tickets?page=1&pageSize=20&status=InProgress&unassignedOnly=false&sortBy=createdAtUtc&sortDirection=desc
-Request method
-GET
-Status code 200 okey
 
 tsak 1.2 in this case now work all filters it (1h - 2.30h)
 
@@ -326,80 +350,6 @@ The test suite covers SLA behaviour, priority handling, ticket assignment, escal
 In short: DEFECT-117 was fixed by moving all filtering into the database query, and Stage A introduces the core business rules for priority, SLA management, assignment, and escalation in a clean, reusable, and fully testable domain design.
 
 
-#2.2 got like 3hours
-and 
-api testing are here
-
-POST /api/tickets \forced Critical, premium customer
-{ 
-"title": "Server is down",
- "description": "Nothing responds since morning",
- "customerId": 1,
- "categoryId": 5,
- "requestedPriority": "Low" 
-}
-
-POST /api/tickets \standard Medium, no specialist
-{ 
-"title": "Customer cannot log in",
- "description": "The customer reports a login error since this morning", "customerId": 2,
- "categoryId": 1,
- "requestedPriority": "Medium"
- }
-
-POST /api/tickets \default priority
-{ 
-"title": "Question about my invoice",
- "description": "I would like to understand the latest invoice", "customerId": 4,
- "categoryId": 2
- }
-
-POST /api/tickets \premium window and floor
-{ 
-"title": "Dashboard is slow to load",
-"description": "Pages take ten seconds to open", 
-"customerId": 3, 
-"categoryId": 3, 
-"requestedPriority": "High" 
-}
-
-
-POST /api/tickets \validation error
-{ 
-"title": "Hi", 
-"description": "short", 
-"customerId": 1, 
-"categoryId": 1 
-}
-
-
-POST /api/tickets \unknown customer
-{
-"title": "Valid title here", 
-"description": "A valid long description", 
-"customerId": 999, 
-"categoryId": 1 
-}
-
-POST /api/tickets/{id}/escalate \success
-{ 
-"reason": "Customer is waiting", 
-"escalatedBy": "lead@test" 
-}
-
-POST /api/tickets/{id}/escalate \reason too short
-{ 
-"reason": "no", 
-"escalatedBy": "lead@test" 
-}
-
-POST /api/tickets/{id}/escalate \missing actor
-{
- "reason": "Customer is waiting", 
-"escalatedBy": "" 
-}
-
-GET /api/tickets/99999/escalations
 
 
 Persistence for ticket escalations, EF migration, automatic creation of escalation entities, escalation endpoints, escalation history endpoints, validators, SLA-aware read operations, and SQLite/integration tests.
